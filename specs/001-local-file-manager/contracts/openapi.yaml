@@ -1,0 +1,367 @@
+openapi: 3.1.0
+info:
+  title: Filez Local Network File Manager API
+  version: 1.0.0
+  description: REST API for local network file management on the host laptop.
+servers:
+  - url: /api
+    description: Current host API root
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service availability status.
+      responses:
+        '200':
+          description: Service is healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /auth/login:
+    post:
+      summary: Authenticate session
+      description: Validates pre-shared passphrase or PIN and sets an HTTP-only session cookie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [passphrase]
+              properties:
+                passphrase:
+                  type: string
+                  example: "492817"
+      responses:
+        '200':
+          description: Successfully authenticated.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: "filez_session=...; HttpOnly; SameSite=Strict; Path=/"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                    example: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/status:
+    get:
+      summary: Get authentication status
+      description: Checks whether the current caller has a valid authenticated session.
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  authenticated:
+                    type: boolean
+                    example: true
+
+  /files:
+    get:
+      summary: List directory contents
+      description: Returns file and subdirectory metadata for the specified relative path.
+      parameters:
+        - name: path
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ""
+          description: Relative path from root. Empty or omitted represents root.
+      responses:
+        '200':
+          description: Directory listing successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DirectoryListing'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete a file
+      description: Permanently deletes the regular file at the specified relative path.
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Relative path of file to delete.
+      responses:
+        '200':
+          description: File successfully deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                    example: true
+                  path:
+                    type: string
+                    example: "photos/sample.jpg"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /upload:
+    post:
+      summary: Upload files
+      description: Uploads one or more files into the specified directory using multipart/form-data.
+      parameters:
+        - name: path
+          in: query
+          required: false
+          schema:
+            type: string
+            default: ""
+          description: Target directory relative path.
+        - name: overwrite
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to overwrite existing files with the same name.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+      responses:
+        '200':
+          description: Upload processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+
+  /files/copy:
+    post:
+      summary: Copy a file
+      description: Copies a file to another relative path within the managed root.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CopyFileRequest'
+      responses:
+        '200':
+          description: File successfully copied.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  copied:
+                    type: boolean
+                    example: true
+                  source_path:
+                    type: string
+                    example: "docs/spec.pdf"
+                  destination_path:
+                    type: string
+                    example: "archive/spec.pdf"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+components:
+  schemas:
+    DirectoryEntry:
+      type: object
+      required: [name, path, is_dir, size_bytes, modified_at, is_symlink]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        is_dir:
+          type: boolean
+        size_bytes:
+          type: integer
+          format: int64
+        modified_at:
+          type: string
+          format: date-time
+        is_symlink:
+          type: boolean
+
+    Breadcrumb:
+      type: object
+      required: [name, path]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+
+    DirectoryListing:
+      type: object
+      required: [current_path, breadcrumbs, entries, total_files, total_dirs]
+      properties:
+        current_path:
+          type: string
+        breadcrumbs:
+          type: array
+          items:
+            $ref: '#/components/schemas/Breadcrumb'
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/DirectoryEntry'
+        total_files:
+          type: integer
+        total_dirs:
+          type: integer
+
+    CopyFileRequest:
+      type: object
+      required: [source_path, destination_path]
+      properties:
+        source_path:
+          type: string
+        destination_path:
+          type: string
+        overwrite:
+          type: boolean
+          default: false
+
+    UploadedItem:
+      type: object
+      required: [name, path, size_bytes]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        size_bytes:
+          type: integer
+          format: int64
+
+    FailedItem:
+      type: object
+      required: [name, error]
+      properties:
+        name:
+          type: string
+        error:
+          type: string
+
+    UploadResult:
+      type: object
+      required: [uploaded, failures]
+      properties:
+        uploaded:
+          type: array
+          items:
+            $ref: '#/components/schemas/UploadedItem'
+        failures:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedItem'
+
+    ApiError:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Malformed request or invalid path parameter.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Unauthorized:
+      description: Authentication required or session expired.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: Access denied or path outside sandbox boundary.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Requested directory or file does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Destination file already exists and overwrite was not permitted.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    PayloadTooLarge:
+      description: Upload payload exceeds maximum configured size limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
