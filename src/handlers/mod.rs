@@ -37,6 +37,7 @@ pub fn create_router(
 
     let protected_files = Router::new()
         .route("/api/files", get(files::list_files))
+        .route("/api/files/search", get(files::search_files))
         .route("/api/files", delete(files::delete_file_handler))
         .route("/api/files/copy", post(files::copy_file_handler))
         .route("/api/files/content", get(files::stream_file_content))

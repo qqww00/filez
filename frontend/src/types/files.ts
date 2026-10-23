@@ -51,3 +51,29 @@ export interface AuthStatus {
   authenticated: boolean;
   max_upload_size_mb?: number;
 }
+
+export type SortField = 'name' | 'size' | 'date' | 'type';
+export type SortDirection = 'asc' | 'desc';
+
+export interface SortConfig {
+  field: SortField;
+  direction: SortDirection;
+  foldersFirst: boolean;
+}
+
+export interface SearchResultEntry extends DirectoryEntry {
+  relative_folder: string;
+}
+
+export interface SearchResultListing {
+  query: string;
+  search_root: string;
+  results: SearchResultEntry[];
+  total_matches: number;
+  is_truncated: boolean;
+}
+
+export interface DragDropState {
+  isDraggingOver: boolean;
+  dragCounter: number;
+}

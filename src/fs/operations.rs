@@ -31,6 +31,26 @@ pub struct DirectoryListing {
     pub total_dirs: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchResultEntry {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub size_bytes: u64,
+    pub modified_at: String,
+    pub is_symlink: bool,
+    pub relative_folder: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchResultListing {
+    pub query: String,
+    pub search_root: String,
+    pub results: Vec<SearchResultEntry>,
+    pub total_matches: usize,
+    pub is_truncated: bool,
+}
+
 /// Lists the contents of a directory within the sandbox, returning metadata and breadcrumbs.
 pub fn list_directory(
     sandbox: &PathSandbox,
@@ -115,6 +135,145 @@ pub fn list_directory(
         entries,
         total_files,
         total_dirs,
+    })
+}
+
+/// Recursively searches files and folders within the sandbox matching a query string.
+pub fn search_directory(
+    sandbox: &PathSandbox,
+    relative_path: &str,
+    query: &str,
+    limit: usize,
+) -> Result<SearchResultListing, AppError> {
+    let trimmed_query = query.trim();
+    if trimmed_query.is_empty() {
+        return Err(AppError::InvalidPath(
+            "Search query cannot be empty".to_string(),
+        ));
+    }
+
+    if trimmed_query.chars().any(|c| c == '\0' || (c as u32) < 32) {
+        return Err(AppError::InvalidPath(
+            "Search query contains invalid control characters".to_string(),
+        ));
+    }
+
+    let resolved = sandbox.resolve(relative_path)?;
+    if !resolved.exists() {
+        return Err(AppError::NotFound(format!(
+            "Search root directory '{}' does not exist",
+            relative_path
+        )));
+    }
+
+    if !resolved.is_dir() {
+        return Err(AppError::InvalidPath(format!(
+            "Search root path '{}' is not a directory",
+            relative_path
+        )));
+    }
+
+    let normalized_root = relative_path.trim_matches('/').replace('\\', "/");
+    let max_results = limit.clamp(1, 1000);
+    let mut results = Vec::new();
+    let mut is_truncated = false;
+    let query_lower = trimmed_query.to_lowercase();
+
+    let mut queue = std::collections::VecDeque::new();
+    queue.push_back((resolved, normalized_root.clone(), 0usize));
+
+    while let Some((curr_dir, rel_dir, depth)) = queue.pop_front() {
+        if depth > 20 {
+            continue;
+        }
+
+        let read_dir = match fs::read_dir(&curr_dir) {
+            Ok(rd) => rd,
+            Err(_) => continue,
+        };
+
+        for entry_res in read_dir {
+            let entry = match entry_res {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            let file_name = entry.file_name().to_string_lossy().to_string();
+            if file_name.starts_with(".filez_tmp_") {
+                continue;
+            }
+
+            let child_rel_path = if rel_dir.is_empty() {
+                file_name.clone()
+            } else {
+                format!("{}/{}", rel_dir, file_name)
+            };
+
+            let symlink_meta = match entry.metadata() {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+
+            let is_symlink = symlink_meta.file_type().is_symlink();
+            if is_symlink && sandbox.resolve(&child_rel_path).is_err() {
+                continue;
+            }
+
+            let is_dir = symlink_meta.is_dir();
+            let size_bytes = if is_dir { 0 } else { symlink_meta.len() };
+            let modified_at = format_system_time(symlink_meta.modified().unwrap_or(UNIX_EPOCH));
+
+            if file_name.to_lowercase().contains(&query_lower) {
+                let relative_folder = if rel_dir == normalized_root {
+                    String::new()
+                } else if rel_dir.starts_with(&normalized_root) && !normalized_root.is_empty() {
+                    rel_dir[normalized_root.len()..]
+                        .trim_matches('/')
+                        .to_string()
+                } else {
+                    rel_dir.clone()
+                };
+
+                results.push(SearchResultEntry {
+                    name: file_name.clone(),
+                    path: child_rel_path.clone(),
+                    is_dir,
+                    size_bytes,
+                    modified_at,
+                    is_symlink,
+                    relative_folder,
+                });
+
+                if results.len() >= max_results {
+                    is_truncated = true;
+                    break;
+                }
+            }
+
+            if is_dir && depth < 20 && (!is_symlink || sandbox.resolve(&child_rel_path).is_ok()) {
+                queue.push_back((entry.path(), child_rel_path, depth + 1));
+            }
+        }
+
+        if is_truncated {
+            break;
+        }
+    }
+
+    results.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+    });
+
+    let total_matches = results.len();
+
+    Ok(SearchResultListing {
+        query: trimmed_query.to_string(),
+        search_root: normalized_root,
+        results,
+        total_matches,
+        is_truncated,
     })
 }
 
@@ -531,5 +690,83 @@ mod tests {
 
         // Overwrite permitted
         copy_file(&sandbox, "src.txt", "dest", true).unwrap();
+    }
+
+    #[test]
+    fn test_search_directory_root_and_nested() {
+        let temp = tempdir().unwrap();
+        let sandbox = PathSandbox::new(temp.path()).unwrap();
+
+        fs::create_dir_all(temp.path().join("media").join("photos")).unwrap();
+        fs::create_dir_all(temp.path().join("documents")).unwrap();
+        fs::write(
+            temp.path().join("media").join("photos").join("sunset.jpg"),
+            b"image",
+        )
+        .unwrap();
+        fs::write(
+            temp.path().join("documents").join("sunset_notes.txt"),
+            b"notes",
+        )
+        .unwrap();
+        fs::write(temp.path().join("sunrise.jpg"), b"other").unwrap();
+
+        let search = search_directory(&sandbox, "", "sunset", 100).unwrap();
+        assert_eq!(search.total_matches, 2);
+        assert_eq!(search.query, "sunset");
+        assert!(!search.is_truncated);
+
+        let paths: Vec<String> = search.results.iter().map(|r| r.path.clone()).collect();
+        assert!(paths.contains(&"documents/sunset_notes.txt".to_string()));
+        assert!(paths.contains(&"media/photos/sunset.jpg".to_string()));
+        assert!(!paths.contains(&"sunrise.jpg".to_string()));
+
+        // Scoped search inside documents/ only
+        let scoped_search = search_directory(&sandbox, "documents", "sunset", 100).unwrap();
+        assert_eq!(scoped_search.total_matches, 1);
+        assert_eq!(scoped_search.results[0].name, "sunset_notes.txt");
+        assert_eq!(scoped_search.results[0].relative_folder, "");
+    }
+
+    #[test]
+    fn test_search_directory_folders_first() {
+        let temp = tempdir().unwrap();
+        let sandbox = PathSandbox::new(temp.path()).unwrap();
+
+        fs::create_dir(temp.path().join("alpha_dir")).unwrap();
+        fs::write(temp.path().join("alpha_file.txt"), b"1").unwrap();
+
+        let search = search_directory(&sandbox, "", "alpha", 100).unwrap();
+        assert_eq!(search.results.len(), 2);
+        assert!(search.results[0].is_dir);
+        assert_eq!(search.results[0].name, "alpha_dir");
+        assert!(!search.results[1].is_dir);
+        assert_eq!(search.results[1].name, "alpha_file.txt");
+    }
+
+    #[test]
+    fn test_search_directory_empty_or_whitespace_query() {
+        let temp = tempdir().unwrap();
+        let sandbox = PathSandbox::new(temp.path()).unwrap();
+
+        assert!(matches!(
+            search_directory(&sandbox, "", "", 100),
+            Err(AppError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            search_directory(&sandbox, "", "   ", 100),
+            Err(AppError::InvalidPath(_))
+        ));
+    }
+
+    #[test]
+    fn test_search_directory_path_traversal_rejection() {
+        let temp = tempdir().unwrap();
+        let sandbox = PathSandbox::new(temp.path()).unwrap();
+
+        assert!(matches!(
+            search_directory(&sandbox, "../", "query", 100),
+            Err(AppError::PathTraversal(_))
+        ));
     }
 }

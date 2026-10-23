@@ -1,5 +1,5 @@
 import { apiFetch, ClientError } from './client';
-import type { ApiError, AuthStatus, DirectoryListing, UploadResult } from '../types/files';
+import type { ApiError, AuthStatus, DirectoryListing, SearchResultListing, UploadResult } from '../types/files';
 import type { UploadSingleFileOptions } from '../types/upload';
 import { UploadMetricsTracker } from '../utils/progress';
 
@@ -17,6 +17,19 @@ export async function getAuthStatus(): Promise<AuthStatus> {
 export async function listFiles(path?: string): Promise<DirectoryListing> {
   const query = path ? `?path=${encodeURIComponent(path)}` : '';
   return apiFetch<DirectoryListing>(`/api/files${query}`);
+}
+
+export async function searchFiles(
+  query: string,
+  path?: string,
+  limit?: number
+): Promise<SearchResultListing> {
+  const params = new URLSearchParams();
+  params.set('q', query);
+  if (path) params.set('path', path);
+  if (limit) params.set('limit', limit.toString());
+
+  return apiFetch<SearchResultListing>(`/api/files/search?${params.toString()}`);
 }
 
 export async function uploadFiles(

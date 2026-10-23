@@ -1,6 +1,6 @@
 use crate::{
     error::AppError,
-    fs::{copy_file, delete_file, list_directory, save_field_atomic},
+    fs::{copy_file, delete_file, list_directory, save_field_atomic, search_directory},
     handlers::AppState,
 };
 use axum::{
@@ -22,6 +22,24 @@ pub async fn list_files(
 ) -> Result<impl IntoResponse, AppError> {
     let rel_path = query.path.unwrap_or_default();
     let listing = list_directory(&state.sandbox, &rel_path)?;
+
+    Ok(Json(listing))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SearchFilesQuery {
+    pub q: String,
+    pub path: Option<String>,
+    pub limit: Option<usize>,
+}
+
+pub async fn search_files(
+    State(state): State<AppState>,
+    Query(query): Query<SearchFilesQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let rel_path = query.path.unwrap_or_default();
+    let limit = query.limit.unwrap_or(500);
+    let listing = search_directory(&state.sandbox, &rel_path, &query.q, limit)?;
 
     Ok(Json(listing))
 }

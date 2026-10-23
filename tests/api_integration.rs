@@ -509,3 +509,88 @@ async fn test_stream_file_content_full_and_range() {
 
     assert_eq!(traversal_resp.status(), StatusCode::FORBIDDEN);
 }
+
+#[tokio::test]
+async fn test_search_endpoint() {
+    let ctx = TestContext::new();
+    let token = ctx.auth_service.create_session_token();
+    let cookie = format!("filez_session={}", token);
+    let root = ctx.temp_dir.path();
+
+    // Setup nested files
+    std::fs::create_dir_all(root.join("docs").join("arch")).unwrap();
+    std::fs::write(
+        root.join("docs").join("arch").join("blueprint.pdf"),
+        b"blueprint data",
+    )
+    .unwrap();
+    std::fs::write(root.join("docs").join("notes.txt"), b"some notes").unwrap();
+    std::fs::write(root.join("readme.md"), b"top level readme").unwrap();
+
+    // 1. Unauthenticated request returns 401
+    let app = ctx.app();
+    let unauth_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/files/search?q=blueprint")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(unauth_resp.status(), StatusCode::UNAUTHORIZED);
+
+    // 2. Authenticated search for "blueprint"
+    let app = ctx.app();
+    let search_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/files/search?q=blueprint")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(search_resp.status(), StatusCode::OK);
+    let body = search_resp.into_body().collect().await.unwrap().to_bytes();
+    let json: Value = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(json["query"], "blueprint");
+    assert_eq!(json["total_matches"], 1);
+    assert_eq!(json["results"][0]["name"], "blueprint.pdf");
+    assert_eq!(json["results"][0]["path"], "docs/arch/blueprint.pdf");
+    assert_eq!(json["results"][0]["relative_folder"], "docs/arch");
+
+    // 3. Path traversal attempt returns 403
+    let app = ctx.app();
+    let traversal_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/files/search?path=../&q=blueprint")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(traversal_resp.status(), StatusCode::FORBIDDEN);
+
+    // 4. Empty query returns 400
+    let app = ctx.app();
+    let empty_q_resp = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/files/search?q=")
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(empty_q_resp.status(), StatusCode::BAD_REQUEST);
+}

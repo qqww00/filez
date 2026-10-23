@@ -74,6 +74,14 @@ export const FileRow: React.FC<FileRowProps> = ({
         <span className="file-name" title={entry.name}>
           {entry.name}
         </span>
+        {'relative_folder' in entry && (entry as { relative_folder?: string }).relative_folder ? (
+          <span
+            className="file-folder-badge"
+            title={`Folder: ${(entry as { relative_folder?: string }).relative_folder}`}
+          >
+            📂 {(entry as { relative_folder?: string }).relative_folder}
+          </span>
+        ) : null}
       </div>
 
       <div className="file-meta">
