@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import type { Breadcrumb } from '../types/files';
 
 interface BreadcrumbsProps {
@@ -12,8 +12,21 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onNavigate,
   disabled = false,
 }) => {
+  const containerRef = useRef<HTMLElement>(null);
+
+  // Automatically scroll to active child crumb on deep navigation
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = containerRef.current.scrollWidth;
+    }
+  }, [breadcrumbs]);
+
   return (
-    <nav className="breadcrumbs-container" aria-label="Directory Breadcrumbs">
+    <nav
+      ref={containerRef}
+      className="breadcrumbs-container"
+      aria-label="Directory Breadcrumbs"
+    >
       <ol className="breadcrumbs-list">
         {breadcrumbs.map((crumb, idx) => {
           const isLast = idx === breadcrumbs.length - 1;

@@ -39,7 +39,7 @@ export const FileRow: React.FC<FileRowProps> = ({
   onNavigate,
   onPlayVideo,
   onCopy,
-  onDelete,
+  // onDelete,
 }) => {
   const isVideo = !entry.is_dir && isVideoFile(entry.name);
 
@@ -114,7 +114,7 @@ export const FileRow: React.FC<FileRowProps> = ({
                 📋
               </button>
             )}
-            {onDelete && (
+            {/* {onDelete && (
               <button
                 type="button"
                 className="btn-action btn-action-danger"
@@ -124,7 +124,7 @@ export const FileRow: React.FC<FileRowProps> = ({
               >
                 🗑️
               </button>
-            )}
+            )} */}
           </div>
         )}
       </div>

@@ -81,7 +81,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   return (
     <div
-      className="video-modal-backdrop"
+      className={`video-modal-backdrop ${isFullscreen ? 'has-fullscreen' : ''}`}
       onClick={onClose}
       role="dialog"
       aria-modal="true"

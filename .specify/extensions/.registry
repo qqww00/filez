@@ -16,6 +16,78 @@
       },
       "registered_skills": [],
       "installed_at": "2026-10-23T15:13:34.153715+00:00"
+    },
+    "harness": {
+      "version": "1.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:a3e746c50436226dc25a424d8424b9036bbfcda8ad0ee090a661038466efea13",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "agy": [
+          "speckit.harness.init",
+          "speckit.harness.explore",
+          "speckit.harness.verify",
+          "speckit.harness.status",
+          "speckit.harness.report"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-10-23T22:59:38.213554+00:00"
+    },
+    "security-review": {
+      "version": "2.0.0",
+      "source": "local",
+      "manifest_hash": "sha256:5b7d812cb62bc4a35ce68b5aec7c297487c92b086bd9a18beccdf3538abc3b6f",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "agy": [
+          "speckit.security-review.audit",
+          "speckit.security-review.staged",
+          "speckit.security-review.branch",
+          "speckit.security-review.plan",
+          "speckit.security-review.tasks",
+          "speckit.security-review.followup",
+          "speckit.security-review.apply",
+          "speckit.security-review.export",
+          "speckit.security-review.verify",
+          "speckit.security-review.init"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-10-23T23:14:31.664245+00:00"
+    },
+    "test-by": {
+      "version": "1.2.0",
+      "source": "local",
+      "manifest_hash": "sha256:bde241980c78aac11ab9cf6941235c7fc04231d8f90d9fed0f13d0299cf6159a",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "agy": [
+          "speckit.test-by.validate",
+          "speckit.test-by.e2e"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-10-23T23:14:58.540296+00:00"
+    },
+    "bdd": {
+      "version": "1.0.3",
+      "source": "local",
+      "manifest_hash": "sha256:9092d61e8e6ebb0b68f8ee3a27aa81f664bc4e8bae045a828a8f2bfa0eddeb2f",
+      "enabled": true,
+      "priority": 10,
+      "registered_commands": {
+        "agy": [
+          "speckit.bdd.scenarios",
+          "speckit.bdd.scaffold",
+          "speckit.bdd.verify"
+        ]
+      },
+      "registered_skills": [],
+      "installed_at": "2026-10-23T23:21:42.023958+00:00"
     }
   }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { DirectoryEntry, SortConfig, SortField } from '../types/files';
+import type { DirectoryEntry, SortConfig, SortDirection, SortField } from '../types/files';
 import { FileRow } from './FileRow';
 
 interface FileListProps {
@@ -7,6 +7,7 @@ interface FileListProps {
   isLoading: boolean;
   sortConfig?: SortConfig;
   onSortChange?: (field: SortField) => void;
+  onSortSelect?: (field: SortField, direction: SortDirection) => void;
   isSearching?: boolean;
   onNavigate: (path: string) => void;
   onPlayVideo?: (entry: DirectoryEntry) => void;
@@ -19,11 +20,12 @@ export const FileList: React.FC<FileListProps> = ({
   isLoading,
   sortConfig,
   onSortChange,
+  onSortSelect,
   isSearching = false,
   onNavigate,
   onPlayVideo,
   onCopy,
-  onDelete,
+  // onDelete,
 }) => {
   if (isLoading) {
     return (
@@ -69,15 +71,20 @@ export const FileList: React.FC<FileListProps> = ({
   return (
     <div className="file-list-container">
       {/* Mobile Sorting Controls */}
-      {onSortChange && sortConfig && (
+      {sortConfig && (onSortSelect || onSortChange) && (
         <div className="mobile-sort-bar">
-          <span>Sort by:</span>
+          <label htmlFor="mobile-sort-select" className="mobile-sort-label">Sort by:</label>
           <select
+            id="mobile-sort-select"
             className="mobile-sort-select"
             value={`${sortConfig.field}-${sortConfig.direction}`}
             onChange={(e) => {
-              const [field] = e.target.value.split('-') as [SortField, string];
-              onSortChange(field);
+              const [field, direction] = e.target.value.split('-') as [SortField, SortDirection];
+              if (onSortSelect) {
+                onSortSelect(field, direction);
+              } else if (onSortChange) {
+                onSortChange(field);
+              }
             }}
             aria-label="Sort directory contents"
           >
@@ -156,7 +163,7 @@ export const FileList: React.FC<FileListProps> = ({
             onNavigate={onNavigate}
             onPlayVideo={onPlayVideo}
             onCopy={onCopy}
-            onDelete={onDelete}
+          // onDelete={onDelete}
           />
         ))}
       </div>

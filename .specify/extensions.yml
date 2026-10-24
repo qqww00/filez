@@ -1,5 +1,74 @@
 installed:
+- bdd
 - bug
+- harness
+- security-review
+- test-by
 settings:
   auto_execute_hooks: true
-hooks: {}
+hooks:
+  after_specify:
+  - extension: harness
+    command: speckit.harness.init
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Set up a state-externalized research harness for this feature?
+    description: Initialize harness state after specification
+    condition: null
+  - extension: bdd
+    command: speckit.bdd.scenarios
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Generate Gherkin acceptance scenarios from the spec before planning?
+    description: Converts acceptance criteria into Gherkin feature files immediately
+      after spec is written
+    condition: null
+  after_plan:
+  - extension: harness
+    command: speckit.harness.verify
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Verify plan claims against primary sources and the harness evidence base?
+    description: Run claim verification after planning
+    condition: null
+  - extension: security-review
+    command: speckit.security-review.plan
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Would you like to perform a security review on the proposed technical
+      plan?
+    description: ''
+    condition: null
+  after_tasks:
+  - extension: security-review
+    command: speckit.security-review.tasks
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Would you like to verify that security boundaries are represented in the
+      tasks?
+    description: ''
+    condition: null
+  after_implement:
+  - extension: security-review
+    command: speckit.security-review.branch
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Would you like to scan the new implementation for security vulnerabilities?
+    description: ''
+    condition: null
+  before_implement:
+  - extension: bdd
+    command: speckit.bdd.scaffold
+    enabled: true
+    optional: true
+    priority: 10
+    prompt: Scaffold step definition stubs before starting implementation?
+    description: Creates step definition stubs so acceptance tests run (and fail)
+      before any code is written
+    condition: null

@@ -12,6 +12,7 @@ import { UploadProgressDrawer } from '../components/UploadProgressDrawer';
 import { VideoPlayerModal } from '../components/VideoPlayerModal';
 import { ConfirmDeleteDialog } from '../components/ConfirmDeleteDialog';
 import { CopyDialog } from '../components/CopyDialog';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { copyFile, deleteFile, searchFiles } from '../api/files';
 import type { DirectoryEntry } from '../types/files';
 
@@ -75,11 +76,15 @@ export const FileManagerPage: React.FC = () => {
     setIsSearchingBackend,
     sortConfig,
     setSortField,
+    setSortConfig,
     filteredAndSortedEntries,
     totalMatches,
   } = useFileSortAndFilter({
     entries: listing ? listing.entries : [],
   });
+
+  const isModalActive = !isAuthenticated || !!deletingEntry || !!copyingEntry || !!playingVideo;
+  useScrollLock(isModalActive);
 
   const handleSearchSubmit = async () => {
     const trimmed = searchQuery.trim();
@@ -263,6 +268,9 @@ export const FileManagerPage: React.FC = () => {
               isLoading={isLoading || isSearchingBackend}
               sortConfig={sortConfig}
               onSortChange={setSortField}
+              onSortSelect={(field, direction) => {
+                setSortConfig((prev) => ({ ...prev, field, direction }));
+              }}
               isSearching={isFiltering}
               onNavigate={handleNavigate}
               onPlayVideo={(entry) => {
